@@ -14,10 +14,12 @@ jobs:
       fail-fast: false
       matrix:
         branch:
-          - main
-          - release-1.6
-          - release-1.5
-          - release-1.4
+          # - main
+          # - release-1.6
+          # - release-1.5
+          # - release-1.4
+          - sealights-nightly-workflow
+          
     name: 'E2E Tests on ${{ matrix.branch }}'
     concurrency:
       group: '${{ github.workflow }}-${{ matrix.branch }}'
@@ -111,7 +113,7 @@ jobs:
       - name: Run the SeaLights scan for integration_tests
         run: |
           echo "[Sealights] Running the SeaLights integration tests scan"
-          ./slcli scan --bsid buildSessionId.txt  --path-to-scanner ./slgoagent --workspacepath "./" --scm git --scmBaseUrl https://github.com/redhat-developer/rhdh-operator --scmProvider github
+          ./slcli scan --bsid buildSessionId.txt  --path-to-scanner ./slgoagent --workspacepath "./" --scm git --scmBaseUrl https://github.com/npotluri-rh/rhdh-operator --scmProvider github
         env:
           SEALIGHTS_TEST_STAGE: "E2E Tests Nightly"
           SEALIGHTS_TEST_SELECTION: false
