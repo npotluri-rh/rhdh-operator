@@ -1,13 +1,15 @@
 name: PR Test operator
 
 on:
-  pull_request:
-    branches: 
-    - main
-    - rhdh-1.[0-9]+
-    - 1.[0-9]+.x
-    - release-1.[0-9]+
-
+  # pull_request:
+  #   branches: 
+  #   - main
+  #   - rhdh-1.[0-9]+
+  #   - 1.[0-9]+.x
+  #   - release-1.[0-9]+
+  pull_request_target:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+    
 jobs:
   pr-validate:
     name: PR Validate
