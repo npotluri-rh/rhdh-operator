@@ -43,7 +43,8 @@ jobs:
           OPERATOR_MANIFEST="${{ github.workspace }}/${distLocation}"
           proto="file://"
           if [[ "${branch}" != "main" ]]; then
-            version="${branch#release-}"
+            # version="${branch#release-}"
+            version="sealights-nightly-workflow#test-1.5"
             major=$(echo $version | cut -d. -f1)
             minor=$(echo $version | cut -d. -f2)
             OPERATOR_MANIFEST="${{ github.workspace }}/tests/e2e/testdata/rhdh-operator-${version}.yaml"
