@@ -15,7 +15,7 @@ jobs:
       - name: Handle invalid context for pull requests
         if: ${{ env.on-event == 'pull_request' && (!github.event.pull_request.head.sha || !github.event.pull_request.number) }}
         run: |
-          echo "Invalid context for this workflow run. Exiting."
+          echo "[ERROR] Pull Request has no github.event.pull_request.head.sha or github.event.pull_request.number: must exit."
           exit 1
           
       - name: Checkout
@@ -118,7 +118,7 @@ jobs:
         env:
           LATEST_COMMIT_SHA: ${{ github.sha }}
 
-      - name: Run the SeaLights scan for integration_tests
+      - name: Run SeaLights scan for integration tests
         run: |
           echo "[Sealights] Running the SeaLights integration tests scan"
           ./slcli scan --bsid buildSessionId.txt  --path-to-scanner ./slgoagent --workspacepath "./" --scm git --scmBaseUrl https://github.com/redhat-developer/rhdh-operator --scmProvider github
@@ -142,7 +142,7 @@ jobs:
         if: steps.changed-files.outputs.any_changed == 'true'
         run: make integration-test ARGS='--focus "create default rhdh"' USE_EXISTING_CLUSTER=true USE_EXISTING_CONTROLLER=true
 
-      - name: clean all SeaLights secret stuff
+      - name: Remove SeaLights secrets
         run: |
           echo "[Sealights] Cleaning up after SeaLights run"
           rm sltoken.txt
