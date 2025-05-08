@@ -5,9 +5,10 @@ on:
     #types: [opened, synchronize, reopened, labeled, unlabeled]
     branches: 
       - main
-      - rhdh-1.[0-9]+
-      - 1.[0-9]+.x
-      - release-1.[0-9]+
+      # - rhdh-1.[0-9]+
+      # - 1.[0-9]+.x
+      # - release-1.[0-9]+
+      - pr-test
     
 jobs:
   pr-validate:
