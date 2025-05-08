@@ -111,7 +111,7 @@ jobs:
         env:
           LATEST_COMMIT_SHA: ${{ github.sha }}
 
-      - name: Run the SeaLights scan for integration_tests
+      - name: Run SeaLights scan for integration tests
         run: |
           echo "[Sealights] Running the SeaLights integration tests scan"
           ./slcli scan --bsid buildSessionId.txt  --path-to-scanner ./slgoagent --workspacepath "./" --scm git --scmBaseUrl https://github.com/npotluri-rh/rhdh-operator --scmProvider github
@@ -129,7 +129,7 @@ jobs:
           IMG: ${{ env.OPERATOR_IMAGE }}
         run: make test-e2e
 
-      - name: clean all SeaLights secret stuff
+      - name: Remove SeaLights secrets
         run: |
           echo "[Sealights] Cleaning up after SeaLights run"
           rm sltoken.txt
