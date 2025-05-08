@@ -4,8 +4,7 @@ on:
   # workflow_dispatch so that it can be triggered manually if needed
   workflow_dispatch:
   schedule:
-    #- cron: "34 23 * * *"
-    - cron: "15 * * * *"
+    - cron: "34 23 * * *"
 
 jobs:
   e2e-tests:
@@ -107,7 +106,7 @@ jobs:
         if: ${{ steps.operator-image-existence-checker.outputs.OPERATOR_IMAGE_EXISTS == 'true' }}
         run: |
           echo "[Sealights] Configuring SeaLights to scan the main branch for nightly"
-          ./slcli config create-bsid --app rhdh-operator --branch "main" --build "$BUILD_TIME :$LATEST_COMMIT_SHA"
+          ./slcli config create-bsid --app rhdh-operator --branch "${branch}" --build "$BUILD_TIME :$LATEST_COMMIT_SHA"
         env:
           LATEST_COMMIT_SHA: ${{ github.sha }}
 
