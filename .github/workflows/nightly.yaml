@@ -106,7 +106,7 @@ jobs:
         if: ${{ matrix.branch == 'main' }} && ${{ steps.operator-image-existence-checker.outputs.OPERATOR_IMAGE_EXISTS == 'true' }}
         run: |
           echo "[Sealights] Configuring SeaLights to scan for main branch nightly"
-          ./slcli config create-bsid --app rhdh-operator --branch main --build "$BUILD_TIME :$LATEST_COMMIT_SHA"
+          ./slcli config create-bsid --app rhdh-operator --branch main --build "$BUILD_TIME:$LATEST_COMMIT_SHA"
         env:
           LATEST_COMMIT_SHA: ${{ github.sha }}
 
@@ -114,7 +114,7 @@ jobs:
         if: ${{ matrix.branch == 'main' }}
         run: |
           echo "[Sealights] Running the SeaLights e2e tests scan"
-          ./slcli scan --bsid buildSessionId.txt  --path-to-scanner ./slgoagent  --workspacepath "./" --scm git --scmBaseUrl https://github.com/npotluri-rh/rhdh-operator --scmProvider github
+          ./slcli scan --bsid buildSessionId.txt  --path-to-scanner ./slgoagent  --workspacepath "./" --scm git --scmBaseUrl https://github.com/redhat-developer/rhdh-operator --scmProvider github
         env:
           SEALIGHTS_TEST_STAGE: "E2E Tests Nightly"
 
