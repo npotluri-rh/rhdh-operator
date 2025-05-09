@@ -42,10 +42,10 @@ jobs:
           proto="file://"
           if [[ "${branch}" != "main" ]]; then
             #version="${branch#release-}"
-            version = "1.5"
-            major=$(echo $version | cut -d. -f1)
-            minor=$(echo $version | cut -d. -f2)
-            OPERATOR_MANIFEST="${{ github.workspace }}/tests/e2e/testdata/rhdh-operator-${version}.yaml"
+            #major=$(echo $version | cut -d. -f1)
+            #minor=$(echo $version | cut -d. -f2)
+            #OPERATOR_MANIFEST="${{ github.workspace }}/tests/e2e/testdata/rhdh-operator-${version}.yaml"
+            OPERATOR_MANIFEST="${{ github.workspace }}/tests/e2e/testdata/rhdh-operator-1.5.yaml"
             # TODO(rm3l): remove this once 1.6 is the minimal supported version
             if [[ $major -ge 1 && $minor -ge 6 ]]; then
               OPERATOR_MANIFEST="https://raw.githubusercontent.com/${{ github.repository }}/refs/heads/${branch}/${distLocation}"
