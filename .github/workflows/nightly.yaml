@@ -13,7 +13,7 @@ jobs:
       fail-fast: false
       matrix:
         branch:
-          - sealights-nightly-workflow
+          - main
           - release-1.6
           - release-1.5
           - release-1.4
@@ -41,11 +41,10 @@ jobs:
           OPERATOR_MANIFEST="${{ github.workspace }}/${distLocation}"
           proto="file://"
           if [[ "${branch}" != "main" ]]; then
-            #version="${branch#release-}"
-            #major=$(echo $version | cut -d. -f1)
-            #minor=$(echo $version | cut -d. -f2)
-            #OPERATOR_MANIFEST="${{ github.workspace }}/tests/e2e/testdata/rhdh-operator-${version}.yaml"
-            OPERATOR_MANIFEST="${{ github.workspace }}/tests/e2e/testdata/rhdh-operator-1.5.yaml"
+            version="${branch#release-}"
+            major=$(echo $version | cut -d. -f1)
+            minor=$(echo $version | cut -d. -f2)
+            OPERATOR_MANIFEST="${{ github.workspace }}/tests/e2e/testdata/rhdh-operator-${version}.yaml"
             # TODO(rm3l): remove this once 1.6 is the minimal supported version
             if [[ $major -ge 1 && $minor -ge 6 ]]; then
               OPERATOR_MANIFEST="https://raw.githubusercontent.com/${{ github.repository }}/refs/heads/${branch}/${distLocation}"
@@ -79,7 +78,7 @@ jobs:
           echo "K8S_INGRESS_DOMAIN=$(minikube ip).sslip.io" >> $GITHUB_ENV
 
       - name: Download SeaLights Go agent and CLI tool
-        if: ${{ matrix.branch == 'sealights-nightly-workflow' }}
+        if: ${{ matrix.branch == 'main' }}
         run: |
             echo "[Sealights] Downloading Sealights Golang & CLI Agents..."
             case $(lscpu | awk '/Architecture:/{print $2}') in
@@ -93,7 +92,7 @@ jobs:
             ./slgoagent -v 2> /dev/null | grep version && ./slcli -v 2> /dev/null | grep version
 
       - name: Write SeaLights token into file
-        if: ${{ matrix.branch == 'sealights-nightly-workflow' }}
+        if: ${{ matrix.branch == 'main' }}
         run: echo "${SEALIGHTS_AGENT_TOKEN}" > sltoken.txt
         env:
           SEALIGHTS_AGENT_TOKEN: '${{secrets.SEALIGHTS_AGENT_TOKEN}}' ## Make sure to add token to repo secrets
@@ -104,15 +103,15 @@ jobs:
           ./slcli config init --lang go --token ./sltoken.txt
 
       - name: Configuring SeaLights
-        if: ${{ matrix.branch == 'sealights-nightly-workflow' }} && ${{ steps.operator-image-existence-checker.outputs.OPERATOR_IMAGE_EXISTS == 'true' }}
+        if: ${{ matrix.branch == 'main' }} && ${{ steps.operator-image-existence-checker.outputs.OPERATOR_IMAGE_EXISTS == 'true' }}
         run: |
           echo "[Sealights] Configuring SeaLights to scan for main branch nightly"
-          ./slcli config create-bsid --app rhdh-operator --branch sealights-nightly-workflow --build "$BUILD_TIME :$LATEST_COMMIT_SHA"
+          ./slcli config create-bsid --app rhdh-operator --branch main --build "$BUILD_TIME :$LATEST_COMMIT_SHA"
         env:
           LATEST_COMMIT_SHA: ${{ github.sha }}
 
       - name: Run SeaLights scan for e2e tests
-        if: ${{ matrix.branch == 'sealights-nightly-workflow' }}
+        if: ${{ matrix.branch == 'main' }}
         run: |
           echo "[Sealights] Running the SeaLights e2e tests scan"
           ./slcli scan --bsid buildSessionId.txt  --path-to-scanner ./slgoagent  --workspacepath "./" --scm git --scmBaseUrl https://github.com/npotluri-rh/rhdh-operator --scmProvider github
@@ -130,7 +129,7 @@ jobs:
         run: make test-e2e
 
       - name: Remove SeaLights secrets
-        if: ${{ matrix.branch == 'sealights-nightly-workflow' }}
+        if: ${{ matrix.branch == 'main' }}
         run: |
           echo "[Sealights] Cleaning up after SeaLights run"
           rm sltoken.txt
