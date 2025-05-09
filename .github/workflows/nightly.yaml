@@ -113,11 +113,11 @@ jobs:
       - name: Run SeaLights scan for e2e tests
         run: |
           echo "[Sealights] Running the SeaLights e2e tests scan"
-          ./slcli scan --bsid buildSessionId.txt  --path-to-scanner ./slgoagent --tests-runner --enable-ginkgo --workspacepath "./" --scm git --scmBaseUrl https://github.com/npotluri-rh/rhdh-operator --scmProvider github
+          ./slcli scan --bsid buildSessionId.txt  --path-to-scanner ./slgoagent  --workspacepath "./" --scm git --scmBaseUrl https://github.com/npotluri-rh/rhdh-operator --scmProvider github
         env:
           SEALIGHTS_TEST_STAGE: "E2E Tests Nightly"
-          SEALIGHTS_TEST_SELECTION: TRUE
-          SEALIGHTS_IGNORE_GO_TESTS: false
+          # SEALIGHTS_TEST_SELECTION: TRUE   --tests-runner --enable-ginkgo tried but didn't work
+          # SEALIGHTS_IGNORE_GO_TESTS: false
 
       - name: Run E2E tests
         if: ${{ steps.operator-image-existence-checker.outputs.OPERATOR_IMAGE_EXISTS == 'true' }}
