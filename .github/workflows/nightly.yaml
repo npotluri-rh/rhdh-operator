@@ -105,19 +105,19 @@ jobs:
       - name: Configuring SeaLights
         if: ${{ steps.operator-image-existence-checker.outputs.OPERATOR_IMAGE_EXISTS == 'true' }}
         run: |
-          echo "[Sealights] Configuring SeaLights to scan the main branch for nightly"
+          echo "[Sealights] Configuring SeaLights to scan for nightly"
           ./slcli config create-bsid --app rhdh-operator --branch ${{ matrix.branch }} --build "$BUILD_TIME :$LATEST_COMMIT_SHA"
         env:
           LATEST_COMMIT_SHA: ${{ github.sha }}
 
-      - name: Run SeaLights scan for integration tests
+      - name: Run SeaLights scan for e2e tests
         run: |
-          echo "[Sealights] Running the SeaLights integration tests scan"
+          echo "[Sealights] Running the SeaLights e2e tests scan"
           ./slcli scan --bsid buildSessionId.txt  --path-to-scanner ./slgoagent --tests-runner --enable-ginkgo --workspacepath "./" --scm git --scmBaseUrl https://github.com/npotluri-rh/rhdh-operator --scmProvider github
         env:
           SEALIGHTS_TEST_STAGE: "E2E Tests Nightly"
-          SEALIGHTS_TEST_SELECTION: false
-          SEALIGHTS_IGNORE_GO_TESTS: true
+          SEALIGHTS_TEST_SELECTION: TRUE
+          SEALIGHTS_IGNORE_GO_TESTS: false
 
       - name: Run E2E tests
         if: ${{ steps.operator-image-existence-checker.outputs.OPERATOR_IMAGE_EXISTS == 'true' }}
