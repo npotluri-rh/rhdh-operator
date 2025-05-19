@@ -7,7 +7,6 @@ on:
     - rhdh-1.[0-9]+
     - 1.[0-9]+.x
     - release-1.[0-9]+
-
 jobs:
   pr-validate:
     name: PR Validate
@@ -50,7 +49,7 @@ jobs:
           go-version-file: 'go.mod'
 
       # gosec needs a "build" stage so connect it to the lint step which we always do
-      - name: build
+      - name: Build
         run: make lint
 
       - name: Start Minikube
