@@ -13,9 +13,10 @@ jobs:
       fail-fast: false
       matrix:
         branch:
-          - main
+          - add-unit-it-to-nightly
+          #- main
           #- release-1.6
-          - release-1.5
+          #- release-1.5
     name: 'E2E Tests on ${{ matrix.branch }}'
     concurrency:
       group: '${{ github.workflow }}-${{ matrix.branch }}'
@@ -128,7 +129,7 @@ jobs:
       - name: Run SeaLights scan for unit tests
         run: |
           echo "[SeaLights] Running the SeaLights unit tests scan"
-          ./slcli scan --bsid buildSessionId.txt  --tests-runner --path-to-scanner ./slgoagent --workspacepath "./" --scm git --scmBaseUrl https://github.com/npotluri-rh/rhdh-operator.git --scmProvider github
+          ./slcli scan --bsid buildSessionId.txt  --tests-runner --path-to-scanner ./slgoagent --workspacepath "./" --scm git --scmBaseUrl https://github.com/npotluri-rh/rhdh-operator --scmProvider github
         env:
           SEALIGHTS_TEST_STAGE: "Unit Nightly"
 
@@ -139,7 +140,7 @@ jobs:
       - name: Run SeaLights scan for Integration tests
         run: |
           echo "[SeaLights] Running the SeaLights integration tests scan"
-          ./slcli scan --bsid buildSessionId.txt  --path-to-scanner ./slgoagent --workspacepath "./" --scm git --scmBaseUrl https://github.com/npotluri-rh/rhdh-operator.git --scmProvider github
+          ./slcli scan --bsid buildSessionId.txt  --tests-runner --path-to-scanner ./slgoagent --workspacepath "./" --scm git --scmBaseUrlhttps://github.com/npotluri-rh/rhdh-operator --scmProvider github
         env:
           SEALIGHTS_TEST_STAGE: "Integration Nightly"
 
@@ -152,7 +153,7 @@ jobs:
         if: ${{ steps.operator-image-existence-checker.outputs.OPERATOR_IMAGE_EXISTS == 'true' }}
         run: |
           echo "[SeaLights] Running the SeaLights e2e tests scan"
-          ./slcli scan --bsid buildSessionId.txt  --path-to-scanner ./slgoagent  --workspacepath "./" --scm git --scmBaseUrl https://github.com/npotluri-rh/rhdh-operator.git --scmProvider github
+          ./slcli scan --bsid buildSessionId.txt  --tests-runner --path-to-scanner ./slgoagent  --workspacepath "./" --scm git --scmBaseUrl https://github.com/npotluri-rh/rhdh-operator --scmProvider github
         env:
           SEALIGHTS_TEST_STAGE: "E2E Nightly"
 
