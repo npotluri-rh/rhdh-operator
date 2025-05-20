@@ -36,7 +36,8 @@ jobs:
 
       - name: Set env vars
         run: |
-          branch=${{ matrix.branch }}
+          #branch=${{ matrix.branch }}
+          branch=main
           distLocation="dist/rhdh/install.yaml"
           OPERATOR_MANIFEST="${{ github.workspace }}/${distLocation}"
           proto="file://"
