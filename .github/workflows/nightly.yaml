@@ -141,7 +141,7 @@ jobs:
       - name: Run SeaLights scan for Integration tests
         run: |
           echo "[SeaLights] Running the SeaLights integration tests scan"
-          ./slcli scan --bsid buildSessionId.txt  --tests-runner --path-to-scanner ./slgoagent --workspacepath "./" --scm git --scmBaseUrlhttps://github.com/npotluri-rh/rhdh-operator --scmProvider github
+          ./slcli scan --bsid buildSessionId.txt  --tests-runner --path-to-scanner ./slgoagent --workspacepath "./" --scm git --scmBaseUrl https://github.com/npotluri-rh/rhdh-operator --scmProvider github
         env:
           SEALIGHTS_TEST_STAGE: "Integration Nightly"
 
