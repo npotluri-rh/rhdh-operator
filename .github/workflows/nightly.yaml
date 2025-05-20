@@ -37,8 +37,8 @@ jobs:
       - name: Set env vars
         run: |
           #echo  "OPERATOR_MANIFEST=https://raw.githubusercontent.com/npotluri-rh/rhdh-operator/refs/heads/add-unit-it-to-nightly/dist/rhdh/install.yaml" >> $GITHUB_ENV
-          echo "OPERATOR_MANIFEST=/home/runner/work/rhdh-operator/rhdh-operator/tests/e2e/testdata/rhdh-operator-1.5.yaml"
-          echo "OPERATOR_IMAGE=quay.io/rhdh/rhdh-rhel9-operator:1.7"
+          echo "OPERATOR_MANIFEST=/home/runner/work/rhdh-operator/rhdh-operator/tests/e2e/testdata/rhdh-operator-1.5.yaml" >> $GITHUB_ENV
+          echo "OPERATOR_IMAGE=quay.io/rhdh/rhdh-rhel9-operator:1.7" >> $GITHUB_ENV
           echo "BUILD_TIME=$(date +'%Y-%m-%dT%H:%M:%S')" >> $GITHUB_ENV
 
       - name: Check if operator image exists in remote registry
