@@ -34,34 +34,19 @@ jobs:
         with:
           go-version-file: 'go.mod'
 
-      - name: Set env vars
-        run: |
-          #echo  "OPERATOR_MANIFEST=https://raw.githubusercontent.com/npotluri-rh/rhdh-operator/refs/heads/add-unit-it-to-nightly/dist/rhdh/install.yaml" >> $GITHUB_ENV
-          echo "OPERATOR_MANIFEST=/home/runner/work/rhdh-operator/rhdh-operator/tests/e2e/testdata/rhdh-operator-1.5.yaml" >> $GITHUB_ENV
-          echo "OPERATOR_IMAGE=quay.io/rhdh/rhdh-rhel9-operator:1.7" >> $GITHUB_ENV
-          echo "BUILD_TIME=$(date +'%Y-%m-%dT%H:%M:%S')" >> $GITHUB_ENV
-
-      - name: Check if operator image exists in remote registry
-        id: operator-image-existence-checker
-        run: |
-          echo "OPERATOR_IMAGE_EXISTS=$(skopeo inspect "docker://${{ env.OPERATOR_IMAGE }}" > /dev/null && echo "true" || echo "false")" >> $GITHUB_OUTPUT
-
-      - name: Display warning if image was not found
-        if: ${{ steps.operator-image-existence-checker.outputs.OPERATOR_IMAGE_EXISTS == 'false' }}
-        run: |
-          echo "::warning ::Operator Image ${{ env.OPERATOR_IMAGE }} not found for testing the ${{ matrix.branch }} branch. It might have expired. E2E tests will be skipped for ${{ matrix.branch }}."
-
       - name: Start Minikube
-        if: ${{ steps.operator-image-existence-checker.outputs.OPERATOR_IMAGE_EXISTS == 'true' }}
         uses: medyagh/setup-minikube@cea33675329b799adccc9526aa5daccc26cd5052 # v0.0.19
         with:
           addons: ingress
 
-      - name: Build Ingress Domain
-        if: ${{ steps.operator-image-existence-checker.outputs.OPERATOR_IMAGE_EXISTS == 'true' }}
+      - name: Set env vars
         run: |
+          #echo  "OPERATOR_MANIFEST=https://raw.githubusercontent.com/npotluri-rh/rhdh-operator/refs/heads/add-unit-it-to-nightly/dist/rhdh/install.yaml" >> $GITHUB_ENV
+          echo "OPERATOR_MANIFEST=/home/runner/work/npotluri-rh/rhdh-operator/tests/e2e/testdata/rhdh-operator-1.5.yaml" >> $GITHUB_ENV
+          echo "OPERATOR_IMAGE=quay.io/rhdh/rhdh-rhel9-operator:1.7" >> $GITHUB_ENV
+          echo "BUILD_TIME=$(date +'%Y-%m-%dT%H:%M:%S')" >> $GITHUB_ENV
           echo "K8S_INGRESS_DOMAIN=$(minikube ip).sslip.io" >> $GITHUB_ENV
-
+          
       # gosec needs a "build" stage so connect it to the lint step which we always do
       - name: Build
         run: make lint
@@ -132,7 +117,7 @@ jobs:
       - name: Generic Integration test
         # run this stage only if there are changes that match the includes and not the excludes
         # perform it on backstage.io for speed
-        run: make integration-test PROFILE=backstage.io USE_EXISTING_CLUSTER=true USE_EXISTING_CONTROLLER=true
+        run: make integration-test PROFILE=rhdh USE_EXISTING_CLUSTER=true USE_EXISTING_CONTROLLER=true
 
       - name: Run SeaLights scan for e2e tests
         if: ${{ steps.operator-image-existence-checker.outputs.OPERATOR_IMAGE_EXISTS == 'true' }}
@@ -141,6 +126,16 @@ jobs:
           ./slcli scan --bsid buildSessionId.txt  --tests-runner --path-to-scanner ./slgoagent  --workspacepath "./" --scm git --scmBaseUrl https://github.com/npotluri-rh/rhdh-operator --scmProvider github
         env:
           SEALIGHTS_TEST_STAGE: "E2E Nightly"
+
+      - name: Check if operator image exists in remote registry
+        id: operator-image-existence-checker
+        run: |
+          echo "OPERATOR_IMAGE_EXISTS=$(skopeo inspect "docker://${{ env.OPERATOR_IMAGE }}" > /dev/null && echo "true" || echo "false")" >> $GITHUB_OUTPUT
+          
+      - name: Display warning if image was not found
+        if: ${{ steps.operator-image-existence-checker.outputs.OPERATOR_IMAGE_EXISTS == 'false' }}
+        run: |
+          echo "::warning ::Operator Image ${{ env.OPERATOR_IMAGE }} not found for testing the ${{ matrix.branch }} branch. It might have expired. E2E tests will be skipped for ${{ matrix.branch }}."
 
       - name: Run E2E tests
         if: ${{ steps.operator-image-existence-checker.outputs.OPERATOR_IMAGE_EXISTS == 'true' }}
