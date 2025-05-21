@@ -41,8 +41,8 @@ jobs:
 
       - name: Set env vars
         run: |
-          #echo  "OPERATOR_MANIFEST=https://raw.githubusercontent.com/npotluri-rh/rhdh-operator/refs/heads/add-unit-it-to-nightly/dist/rhdh/install.yaml" >> $GITHUB_ENV
-          echo "OPERATOR_MANIFEST=/home/runner/work/npotluri-rh/rhdh-operator/tests/e2e/testdata/rhdh-operator-1.5.yaml" >> $GITHUB_ENV
+          echo  "OPERATOR_MANIFEST=https://raw.githubusercontent.com/npotluri-rh/rhdh-operator/refs/heads/add-unit-it-to-nightly/dist/rhdh/install.yaml" >> $GITHUB_ENV
+
           echo "OPERATOR_IMAGE=quay.io/rhdh/rhdh-rhel9-operator:1.7" >> $GITHUB_ENV
           echo "BUILD_TIME=$(date +'%Y-%m-%dT%H:%M:%S')" >> $GITHUB_ENV
           echo "K8S_INGRESS_DOMAIN=$(minikube ip).sslip.io" >> $GITHUB_ENV
@@ -147,7 +147,7 @@ jobs:
           BACKSTAGE_OPERATOR_TESTS_PLATFORM: minikube
           BACKSTAGE_OPERATOR_TESTS_K8S_CREATE_INGRESS: 'true'
           BACKSTAGE_OPERATOR_TESTS_K8S_INGRESS_DOMAIN: ${{ env.K8S_INGRESS_DOMAIN }}
-          OPERATOR_MANIFEST: ${{ env.OPERATOR_MANIFEST }}
+          OPERATOR_MANIFEST: 'home/runner/work/rhdh-operator/rhdh-operator/tests/e2e/testdata/rhdh-operator-1.5.yaml'
           IMG: ${{ env.OPERATOR_IMAGE }}
         run: make test-e2e
 
