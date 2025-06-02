@@ -10,10 +10,9 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: 
       - main
-      # - rhdh-1.[0-9]+
-      # - 1.[0-9]+.x
-      # - release-1.[0-9]+
-      - RHIDP-7359-SL-PR
+      - rhdh-1.[0-9]+
+      - 1.[0-9]+.x
+      - release-1.[0-9]+
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.number || github.event.pull_request.head.ref }}
@@ -152,7 +151,6 @@ jobs:
         run: |
           echo "[SeaLights] Running the SeaLights scan"
           ./slcli scan --bsid buildSessionId.txt  --path-to-scanner ./slgoagent --workspacepath "./" --scm git --scmBaseUrl https://github.com/npotluri-rh/rhdh-operator --scmProvider github
-# SEALIGHTS_LAB_ID
 
       - name: Start Minikube
         if: steps.changed-files.outputs.any_changed == 'true'
