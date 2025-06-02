@@ -10,9 +10,10 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     branches: 
       - main
-      - rhdh-1.[0-9]+
-      - 1.[0-9]+.x
-      - release-1.[0-9]+
+      # - rhdh-1.[0-9]+
+      # - 1.[0-9]+.x
+      # - release-1.[0-9]+
+      - RHIDP-7359-SL-PR
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.number || github.event.pull_request.head.ref }}
@@ -100,6 +101,91 @@ jobs:
           BASE_VERSION=$(grep -E "^VERSION \?=" Makefile | sed -r -e "s/.+= //") # 0.0.1
           echo "BASE_VERSION=$BASE_VERSION" >> $GITHUB_ENV
 
+      - name: Store build timestamp
+        run: echo "BUILD_TIME=$(date +'%Y-%m-%dT%H:%M:%S')" >> $GITHUB_ENV
+
+      - name: Write SeaLights token into file
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: echo "${SEALIGHTS_AGENT_TOKEN}" > sltoken.txt
+        env:
+          SEALIGHTS_AGENT_TOKEN: '${{secrets.SEALIGHTS_AGENT_TOKEN}}' ## Make sure to add token to repo secrets
+
+      - name: Download SeaLights Go agent and CLI tool
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+            echo "[SeaLights] Downloading SeaLights Golang & CLI Agents..."
+            # Architectures available: darwin-amd64, darwin-arm64, linux-amd64, linux-arm64
+            SL_OS_ARCH=linux-amd64
+            SL_GO_AGENT_VERSION=v1.1.195
+            SL_CLI_AGENT_VERSION=v1.0.49
+
+            wget -nv -O sealights-go-agent.tar.gz https://agents.sealights.co/slgoagent/${SL_GO_AGENT_VERSION}/slgoagent-${SL_OS_ARCH}.tar.gz
+            wget -nv -O sealights-slcli.tar.gz https://agents.sealights.co/slcli/${SL_CLI_AGENT_VERSION}/slcli-${SL_OS_ARCH}.tar.gz
+
+            tar -xzf ./sealights-go-agent.tar.gz && tar -xzf ./sealights-slcli.tar.gz 
+            rm -f ./sealights-go-agent.tar.gz ./sealights-slcli.tar.gz 
+            ./slgoagent -v 2> /dev/null | grep version && ./slcli -v 2> /dev/null | grep version
+
+      - name: Initiating the SeaLights agent
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          echo "[SeaLights] Initiating the SeaLights agent to Golang and handing it the token"
+          ./slcli config init --lang go --token ./sltoken.txt
+
+      - name: Configuring SeaLights
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          echo "[SeaLights] Configuring SeaLights to scan the pull request branch"
+          echo "Latest commit sha: ${LATEST_COMMIT_SHA}"
+          echo "PR Number: ${PULL_REQUEST_NUMBER}"
+          echo "Target Branch: ${TARGET_BRANCH}"
+          echo "REPO_URL: ${REPO_URL}"
+          ./slcli config create-pr-bsid --app rhdh-operator --target-branch ${TARGET_BRANCH} --pull-request-number ${PULL_REQUEST_NUMBER} --latest-commit ${LATEST_COMMIT_SHA} --repository-url https://github.com/npotluri-rh/rhdh-operator.git
+        env:
+          PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+          LATEST_COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
+          TARGET_BRANCH: ${{ github.event.pull_request.base.ref }} #github.event.pull_request.base.ref # github.base_ref 
+          REPO_URL: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY
+
+      - name: Run SeaLights scan for tests
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          echo "[SeaLights] Running the SeaLights scan"
+          ./slcli scan --bsid buildSessionId.txt  --path-to-scanner ./slgoagent --workspacepath "./" --scm git --scmBaseUrl https://github.com/npotluri-rh/rhdh-operator --scmProvider github
+# SEALIGHTS_LAB_ID
+
+      - name: Start Minikube
+        if: steps.changed-files.outputs.any_changed == 'true'
+        # run this stage only if there are changes that match the includes and not the excludes
+        uses: medyagh/setup-minikube@cea33675329b799adccc9526aa5daccc26cd5052 # v0.0.19
+
+      - name: Run Controller
+        if: steps.changed-files.outputs.any_changed == 'true'
+        # run this stage only if there are changes that match the includes and not the excludes
+        run: |
+          # Need to 'make install' first, so that the necessary tool binaries (like controller-gen) can be downloaded locally.
+          # Otherwise, we might end up with a race condition where the tool binary is not yet downloaded,
+          # but the `make test` command tries to use it.
+          make manifests generate fmt vet install
+          make run &
+
+      - name: Test
+        if: steps.changed-files.outputs.any_changed == 'true'
+        # run this stage only if there are changes that match the includes and not the excludes
+        run: make test
+
+      - name: Generic Integration test
+        if: steps.changed-files.outputs.any_changed == 'true'
+        # run this stage only if there are changes that match the includes and not the excludes
+        # perform it on backstage.io for speed
+        run: make integration-test PROFILE=backstage.io USE_EXISTING_CLUSTER=true USE_EXISTING_CONTROLLER=true
+
+      - name: Clean all SeaLights secret stuff
+        if: always() && steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          echo "[SeaLights] Cleaning up after SeaLights run"
+          rm sltoken.txt
+
       # - name: Login to registry (${{env.REGISTRY}})
       #   # run this stage only if there are changes that match the includes and not the excludes
       #   if: steps.changed-files.outputs.any_changed == 'true'
@@ -150,83 +236,3 @@ jobs:
       #         repo: context.repo.repo,
       #         body: 'PR images are available:<br/><ol><li>https://quay.io/rhdh-community/operator:${{ env.BASE_VERSION }}-pr-${{ github.event.number }}-${{ env.SHORT_SHA }}</li><li>https://quay.io/rhdh-community/operator-bundle:${{ env.BASE_VERSION }}-pr-${{ github.event.number }}-${{ env.SHORT_SHA }}</li><li>https://quay.io/rhdh-community/operator-catalog:${{ env.BASE_VERSION }}-pr-${{ github.event.number }}-${{ env.SHORT_SHA }}</li></ol>'
       #       })
-
-      - name: Store build timestamp
-        run: echo "BUILD_TIME=$(date +'%Y-%m-%dT%H:%M:%S')" >> $GITHUB_ENV
-
-      - name: Write SeaLights token into file
-        run: echo "${SEALIGHTS_AGENT_TOKEN}" > sltoken.txt
-        env:
-          SEALIGHTS_AGENT_TOKEN: '${{secrets.SEALIGHTS_AGENT_TOKEN}}' ## Make sure to add token to repo secrets
-
-      - name: Download SeaLights Go agent and CLI tool
-        run: |
-            echo "[SeaLights] Downloading SeaLights Golang & CLI Agents..."
-            # Architectures available: darwin-amd64, darwin-arm64, linux-amd64, linux-arm64
-            SL_OS_ARCH=linux-amd64
-            SL_GO_AGENT_VERSION=v1.1.195
-            SL_CLI_AGENT_VERSION=v1.0.49
-
-            wget -nv -O sealights-go-agent.tar.gz https://agents.sealights.co/slgoagent/${SL_GO_AGENT_VERSION}/slgoagent-${SL_OS_ARCH}.tar.gz
-            wget -nv -O sealights-slcli.tar.gz https://agents.sealights.co/slcli/${SL_CLI_AGENT_VERSION}/slcli-${SL_OS_ARCH}.tar.gz
-
-            tar -xzf ./sealights-go-agent.tar.gz && tar -xzf ./sealights-slcli.tar.gz 
-            rm -f ./sealights-go-agent.tar.gz ./sealights-slcli.tar.gz 
-            ./slgoagent -v 2> /dev/null | grep version && ./slcli -v 2> /dev/null | grep version
-
-      - name: Initiating the SeaLights agent
-        run: |
-          echo "[SeaLights] Initiating the SeaLights agent to Golang and handing it the token"
-          ./slcli config init --lang go --token ./sltoken.txt
-
-      - name: Configuring SeaLights
-        run: |
-          echo "[SeaLights] Configuring SeaLights to scan the pull request branch"
-          echo "Latest commit sha: ${LATEST_COMMIT_SHA}"
-          echo "PR Number: ${PULL_REQUEST_NUMBER}"
-          echo "Target Branch: ${TARGET_BRANCH}"
-          echo "REPO_URL: ${REPO_URL}"
-          ./slcli config create-pr-bsid --app rhdh-operator --target-branch ${TARGET_BRANCH} --pull-request-number ${PULL_REQUEST_NUMBER} --latest-commit ${LATEST_COMMIT_SHA} --repository-url https://github.com/npotluri-rh/rhdh-operator.git
-        env:
-          PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
-          LATEST_COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
-          TARGET_BRANCH: ${{ github.event.pull_request.base.ref }} #github.event.pull_request.base.ref # github.base_ref 
-          REPO_URL: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY
-
-      - name: Run SeaLights scan for tests
-        run: |
-          echo "[SeaLights] Running the SeaLights scan"
-          ./slcli scan --bsid buildSessionId.txt  --path-to-scanner ./slgoagent --workspacepath "./" --scm git --scmBaseUrl https://github.com/npotluri-rh/rhdh-operator --scmProvider github
-# SEALIGHTS_LAB_ID
-          
-      # gosec needs a "build" stage so connect it to the lint step which we always do
-      - name: Build
-        run: make lint
-
-      - name: Start Minikube
-        # run this stage only if there are changes that match the includes and not the excludes
-        uses: medyagh/setup-minikube@cea33675329b799adccc9526aa5daccc26cd5052 # v0.0.19
-
-      - name: Run Controller
-        # run this stage only if there are changes that match the includes and not the excludes
-        run: |
-          # Need to 'make install' first, so that the necessary tool binaries (like controller-gen) can be downloaded locally.
-          # Otherwise, we might end up with a race condition where the tool binary is not yet downloaded,
-          # but the `make test` command tries to use it.
-          make manifests generate fmt vet install
-          make run &
-
-      - name: Test
-        # run this stage only if there are changes that match the includes and not the excludes
-        run: make test
-
-      - name: Generic Integration test
-        # run this stage only if there are changes that match the includes and not the excludes
-        # perform it on backstage.io for speed
-        run: make integration-test PROFILE=backstage.io USE_EXISTING_CLUSTER=true USE_EXISTING_CONTROLLER=true
-
-      - name: Clean all SeaLights secret stuff
-        if: always() && steps.changed-files.outputs.any_changed == 'false'
-        run: |
-          echo "[SeaLights] Cleaning up after SeaLights run"
-          rm sltoken.txt
