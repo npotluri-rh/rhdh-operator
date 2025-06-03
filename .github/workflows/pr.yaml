@@ -27,6 +27,12 @@ jobs:
     runs-on: ubuntu-latest
     needs: authorize
     steps:
+      - name: Handle invalid context for pull requests
+        if: ${{ (!github.event.pull_request.head.sha || !github.event.pull_request.number) }}
+        run: |
+          echo "[ERROR] Pull Request has no github.event.pull_request.head.sha or github.event.pull_request.number: must exit."
+          exit 1
+          
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
@@ -151,6 +157,12 @@ jobs:
         # run this stage only if there are changes that match the includes and not the excludes
         if: steps.changed-files.outputs.any_changed == 'true'
         run: make integration-test ARGS='--focus "create default rhdh"' USE_EXISTING_CLUSTER=true USE_EXISTING_CONTROLLER=true
+
+      - name: Clean all SeaLights secret stuff
+        if: always() && steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          echo "[SeaLights] Cleaning up after SeaLights run"
+          rm sltoken.txt
 
       - name: Clean all SeaLights secret stuff
         if: always() && steps.changed-files.outputs.any_changed == 'true'

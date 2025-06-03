@@ -100,53 +100,137 @@ jobs:
           BASE_VERSION=$(grep -E "^VERSION \?=" Makefile | sed -r -e "s/.+= //") # 0.0.1
           echo "BASE_VERSION=$BASE_VERSION" >> $GITHUB_ENV
 
-      - name: Login to registry (${{env.REGISTRY}})
-        # run this stage only if there are changes that match the includes and not the excludes
-        if: steps.changed-files.outputs.any_changed == 'true'
-        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ vars.QUAY_USERNAME }}
-          password: ${{ secrets.QUAY_TOKEN }}
+      - name: Store build timestamp
+        run: echo "BUILD_TIME=$(date +'%Y-%m-%dT%H:%M:%S')" >> $GITHUB_ENV
 
-      - name: Build and push operator, bundle, and catalog images
-        # run this stage only if there are changes that match the includes and not the excludes
+      - name: Write SeaLights token into file
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: echo "${SEALIGHTS_AGENT_TOKEN}" > sltoken.txt
+        env:
+          SEALIGHTS_AGENT_TOKEN: '${{secrets.SEALIGHTS_AGENT_TOKEN}}' ## Make sure to add token to repo secrets
+
+      - name: Download SeaLights Go agent and CLI tool
         if: steps.changed-files.outputs.any_changed == 'true'
         run: |
-          # install skopeo, podman
-          sudo apt-get -y update; sudo apt-get -y install skopeo podman
+            echo "[SeaLights] Downloading SeaLights Golang & CLI Agents..."
+            # Architectures available: darwin-amd64, darwin-arm64, linux-amd64, linux-arm64
+            SL_OS_ARCH=linux-amd64
+            SL_GO_AGENT_VERSION=v1.1.195
+            SL_CLI_AGENT_VERSION=v1.0.49
 
-          export CONTAINER_TOOL=podman 
-          export VERSION=${{ env.BASE_VERSION }}-pr-${{ github.event.number }}-${{ env.SHORT_SHA }} 
-          export REGISTRY_WITH_ORG=${{ env.REGISTRY }}/${{ env.REGISTRY_ORG }}
-          export OPERATOR_IMAGE_NAME=${OPERATOR_IMAGE_NAME:-operator}
-          export IMAGE_TAG_BASE=${REGISTRY_WITH_ORG}/${OPERATOR_IMAGE_NAME}
+            wget -nv -O sealights-go-agent.tar.gz https://agents.sealights.co/slgoagent/${SL_GO_AGENT_VERSION}/slgoagent-${SL_OS_ARCH}.tar.gz
+            wget -nv -O sealights-slcli.tar.gz https://agents.sealights.co/slcli/${SL_CLI_AGENT_VERSION}/slcli-${SL_OS_ARCH}.tar.gz
 
-          set -ex
+            tar -xzf ./sealights-go-agent.tar.gz && tar -xzf ./sealights-slcli.tar.gz 
+            rm -f ./sealights-go-agent.tar.gz ./sealights-slcli.tar.gz 
+            ./slgoagent -v 2> /dev/null | grep version && ./slcli -v 2> /dev/null | grep version
 
-          # build 4 container images with a 14d expiry
-          CONTAINER_TOOL=${CONTAINER_TOOL} VERSION=${VERSION} make lint release-build
-
-          # now copy images from local cache to quay, using 0.0.1-pr-123-f00cafe and 0.0.1-pr-123 tags
-          for image in ${OPERATOR_IMAGE_NAME} ${OPERATOR_IMAGE_NAME}-bundle ${OPERATOR_IMAGE_NAME}-catalog; do
-            podman push -q ${REGISTRY_WITH_ORG}/${image}:${VERSION} docker://${REGISTRY_WITH_ORG}/${image}:${VERSION}
-            skopeo --insecure-policy copy --all docker://${REGISTRY_WITH_ORG}/${image}:${VERSION} docker://${REGISTRY_WITH_ORG}/${image}:${VERSION}
-            skopeo --insecure-policy copy --all docker://${REGISTRY_WITH_ORG}/${image}:${VERSION} docker://${REGISTRY_WITH_ORG}/${image}:${VERSION%-*}
-          done
-        env:
-          REGISTRY_ORG: ${{ vars.REGISTRY_ORG }}
-          OPERATOR_IMAGE_NAME: ${{ vars.OPERATOR_IMAGE_NAME }}
-          # to avoid throttling on RHD org, use GH token
-          GH_TOKEN: ${{ secrets.RHDH_BOT_TOKEN }}
-      - name: Comment image links in PR
-        # run this stage only if there are changes that match the includes and not the excludes
+      - name: Initiating the SeaLights agent
         if: steps.changed-files.outputs.any_changed == 'true'
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
-        with:
-          script: |
-            await github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: 'PR images are available:<br/><ol><li>https://quay.io/rhdh-community/operator:${{ env.BASE_VERSION }}-pr-${{ github.event.number }}-${{ env.SHORT_SHA }}</li><li>https://quay.io/rhdh-community/operator-bundle:${{ env.BASE_VERSION }}-pr-${{ github.event.number }}-${{ env.SHORT_SHA }}</li><li>https://quay.io/rhdh-community/operator-catalog:${{ env.BASE_VERSION }}-pr-${{ github.event.number }}-${{ env.SHORT_SHA }}</li></ol>'
-            })
+        run: |
+          echo "[SeaLights] Initiating the SeaLights agent to Golang and handing it the token"
+          ./slcli config init --lang go --token ./sltoken.txt
+
+      - name: Configuring SeaLights
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          echo "[SeaLights] Configuring SeaLights to scan the pull request branch"
+          echo "Latest commit sha: ${LATEST_COMMIT_SHA}"
+          echo "PR Number: ${PULL_REQUEST_NUMBER}"
+          echo "Target Branch: ${TARGET_BRANCH}"
+          echo "REPO_URL: ${REPO_URL}"
+          ./slcli config create-pr-bsid --app rhdh-operator --target-branch ${TARGET_BRANCH} --pull-request-number ${PULL_REQUEST_NUMBER} --latest-commit ${LATEST_COMMIT_SHA} --repository-url https://github.com/npotluri-rh/rhdh-operator.git
+        env:
+          PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+          LATEST_COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
+          TARGET_BRANCH: ${{ github.event.pull_request.base.ref }} #github.event.pull_request.base.ref # github.base_ref 
+          REPO_URL: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY
+
+      - name: Run SeaLights scan for tests
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          echo "[SeaLights] Running the SeaLights scan"
+          ./slcli scan --bsid buildSessionId.txt  --path-to-scanner ./slgoagent --workspacepath "./" --scm git --scmBaseUrl https://github.com/npotluri-rh/rhdh-operator --scmProvider github
+
+      - name: Start Minikube
+        if: steps.changed-files.outputs.any_changed == 'true'
+        # run this stage only if there are changes that match the includes and not the excludes
+        uses: medyagh/setup-minikube@cea33675329b799adccc9526aa5daccc26cd5052 # v0.0.19
+
+      - name: Run Controller
+        if: steps.changed-files.outputs.any_changed == 'true'
+        # run this stage only if there are changes that match the includes and not the excludes
+        run: |
+          # Need to 'make install' first, so that the necessary tool binaries (like controller-gen) can be downloaded locally.
+          # Otherwise, we might end up with a race condition where the tool binary is not yet downloaded,
+          # but the `make test` command tries to use it.
+          make manifests generate fmt vet install
+          make run &
+
+      - name: Test
+        if: steps.changed-files.outputs.any_changed == 'true'
+        # run this stage only if there are changes that match the includes and not the excludes
+        run: make test
+
+      - name: Generic Integration test
+        if: steps.changed-files.outputs.any_changed == 'true'
+        # run this stage only if there are changes that match the includes and not the excludes
+        # perform it on backstage.io for speed
+        run: make integration-test PROFILE=backstage.io USE_EXISTING_CLUSTER=true USE_EXISTING_CONTROLLER=true
+
+      - name: Clean all SeaLights secret stuff
+        if: always() && steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          echo "[SeaLights] Cleaning up after SeaLights run"
+          rm sltoken.txt
+
+      # - name: Login to registry (${{env.REGISTRY}})
+      #   # run this stage only if there are changes that match the includes and not the excludes
+      #   if: steps.changed-files.outputs.any_changed == 'true'
+      #   uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3
+      #   with:
+      #     registry: ${{ env.REGISTRY }}
+      #     username: ${{ vars.QUAY_USERNAME }}
+      #     password: ${{ secrets.QUAY_TOKEN }}
+
+      # - name: Build and push operator, bundle, and catalog images
+      #   # run this stage only if there are changes that match the includes and not the excludes
+      #   if: steps.changed-files.outputs.any_changed == 'true'
+      #   run: |
+      #     # install skopeo, podman
+      #     sudo apt-get -y update; sudo apt-get -y install skopeo podman
+
+      #     export CONTAINER_TOOL=podman 
+      #     export VERSION=${{ env.BASE_VERSION }}-pr-${{ github.event.number }}-${{ env.SHORT_SHA }} 
+      #     export REGISTRY_WITH_ORG=${{ env.REGISTRY }}/${{ env.REGISTRY_ORG }}
+      #     export OPERATOR_IMAGE_NAME=${OPERATOR_IMAGE_NAME:-operator}
+      #     export IMAGE_TAG_BASE=${REGISTRY_WITH_ORG}/${OPERATOR_IMAGE_NAME}
+
+      #     set -ex
+
+      #     # build 4 container images with a 14d expiry
+      #     CONTAINER_TOOL=${CONTAINER_TOOL} VERSION=${VERSION} make lint release-build
+
+      #     # now copy images from local cache to quay, using 0.0.1-pr-123-f00cafe and 0.0.1-pr-123 tags
+      #     for image in ${OPERATOR_IMAGE_NAME} ${OPERATOR_IMAGE_NAME}-bundle ${OPERATOR_IMAGE_NAME}-catalog; do
+      #       podman push -q ${REGISTRY_WITH_ORG}/${image}:${VERSION} docker://${REGISTRY_WITH_ORG}/${image}:${VERSION}
+      #       skopeo --insecure-policy copy --all docker://${REGISTRY_WITH_ORG}/${image}:${VERSION} docker://${REGISTRY_WITH_ORG}/${image}:${VERSION}
+      #       skopeo --insecure-policy copy --all docker://${REGISTRY_WITH_ORG}/${image}:${VERSION} docker://${REGISTRY_WITH_ORG}/${image}:${VERSION%-*}
+      #     done
+      #   env:
+      #     REGISTRY_ORG: ${{ vars.REGISTRY_ORG }}
+      #     OPERATOR_IMAGE_NAME: ${{ vars.OPERATOR_IMAGE_NAME }}
+      #     # to avoid throttling on RHD org, use GH token
+      #     GH_TOKEN: ${{ secrets.RHDH_BOT_TOKEN }}
+      # - name: Comment image links in PR
+      #   # run this stage only if there are changes that match the includes and not the excludes
+      #   if: steps.changed-files.outputs.any_changed == 'true'
+      #   uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7
+      #   with:
+      #     script: |
+      #       await github.rest.issues.createComment({
+      #         issue_number: context.issue.number,
+      #         owner: context.repo.owner,
+      #         repo: context.repo.repo,
+      #         body: 'PR images are available:<br/><ol><li>https://quay.io/rhdh-community/operator:${{ env.BASE_VERSION }}-pr-${{ github.event.number }}-${{ env.SHORT_SHA }}</li><li>https://quay.io/rhdh-community/operator-bundle:${{ env.BASE_VERSION }}-pr-${{ github.event.number }}-${{ env.SHORT_SHA }}</li><li>https://quay.io/rhdh-community/operator-catalog:${{ env.BASE_VERSION }}-pr-${{ github.event.number }}-${{ env.SHORT_SHA }}</li></ol>'
+      #       })
